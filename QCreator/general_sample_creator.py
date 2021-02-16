@@ -114,6 +114,16 @@ class Sample:
 
         return closed_end
 
+    def open_end(self, o: elements.DesignElement, port: str, name: str):
+        open_end = elements.OpenEnd(name, o.get_terminals()[port], self.layer_configuration)
+        self.add(open_end)
+
+        for conductor_id in range(open_end.number_of_conductors):
+            self.connections.append(((o, port, conductor_id), (open_end, 'wide', conductor_id)))
+
+        return open_end
+
+
     def connect_cpw(self, o1: elements.DesignElement, o2: elements.DesignElement, port1: str, port2: str, name: str,
                     points: list):
         """
