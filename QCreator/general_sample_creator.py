@@ -23,11 +23,17 @@ class Sample:
         self.layer_configuration = elements.LayerConfiguration(**configurations)
         self.chip_geometry = elements.ChipGeometry(**configurations)
         self.name = str(name)
-        self.total_cell = gdspy.Cell(self.name)
-        self.restricted_cell = gdspy.Cell(self.name + ' restricted')
-        self.qubit_cell = gdspy.Cell(self.name + ' qubit')
-        self.qubit_cap_cell = gdspy.Cell(self.name + ' qubit capacitance')
-        self.caps = None
+
+        self.lib = gdspy.GdsLibrary(unit=1e-06, precision=1e-09)
+
+        self.total_cell = self.lib.new_cell(self.name, overwrite_duplicate=True, update_references=True)
+        self.restricted_cell = self.lib.new_cell(self.name + ' restricted', overwrite_duplicate=True, update_references=True)
+        # Geometry must be placed in cells.
+
+        #for several additional features
+        self.qubits_cells = []
+        self.qubit_cap_cells = []
+        self.caps_list = []
 
         self.objects = []
 
@@ -52,14 +58,9 @@ class Sample:
     def draw_design(self):
         for object_ in self.objects:
             result = object_.get()
-            if 'qubit_cap' in result:
-                self.qubit_cap_cell.add(result['qubit_cap'])
-            if 'qubit' in result:
-                self.qubit_cell.add(result['qubit'])
             if 'test' in result:
                 self.total_cell.add(result['test'])
             if 'JJ' in result:
-                self.qubit_cell.add(result['JJ'])
                 self.total_cell.add(result['JJ'])
             if 'positive' in result:
                 self.total_cell.add(result['positive'])
@@ -67,10 +68,34 @@ class Sample:
                 self.total_cell.add(result['grid_x'])
             if 'grid_y' in result:
                 self.total_cell.add(result['grid_y'])
-            if 'restricted' in result:
-                self.restricted_cell.add(result['restricted'])
+            if 'restrict' in result:
+                self.restricted_cell.add(result['restrict'])
 
         self.fill_object_arrays()
+    def draw_cap(self): # TODO: maybe we need to come up with a better way, but for this moment it's fine
+        """
+        This function creates new cells with specified qubits
+        1) cells for full qubits
+        2) cells for fastcap
+        """
+        qubit_cap_cell_counter = 0
+        qubits_cell_counter = 0
+        for object_ in self.objects:
+            result = object_.get()
+            if 'qubit_cap' in result:
+                if result['qubit_cap'] is not None:
+                    cap_cell = self.lib.new_cell('qubit capacitance cell ' + str(qubit_cap_cell_counter), overwrite_duplicate=True, update_references=True)
+                    cap_cell.add(result['qubit_cap'])
+                    self.qubit_cap_cells.append(cap_cell)
+                    qubit_cap_cell_counter = qubit_cap_cell_counter + 1
+            if 'qubit' in result:
+                if result['qubit'] is not None:
+                    qubit_cell = gdspy.Cell('qubit cell ' + str(qubits_cell_counter))
+                    qubit_cell.add(result['qubit'])
+                    if 'JJ' in result:
+                        qubit_cell.add(result['JJ'])
+                    self.qubits_cells.append(qubit_cell)
+                    qubits_cell_counter = qubits_cell_counter + 1
 
     def fill_object_arrays(self):
         self.qubits = [i for i in self.objects if i.type == 'qubit']
@@ -164,8 +189,7 @@ class Sample:
         if orientation2 > np.pi:
             orientation2 -= 2 * np.pi
 
-        points = [t1.position] + points + [t2.position]
-
+        points = [tuple(t1.position)] + points + [tuple(t2.position)]
         cpw = elements.CPW(name, points, w, s, g, self.layer_configuration, r=self.default_cpw_radius(w, s, g),
                            corner_type='round', orientation1=orientation1, orientation2=orientation2)
         self.add(cpw)
@@ -187,17 +211,17 @@ class Sample:
     # functions to work and calculate capacitance
     def write_to_gds(self, name=None):
         if name is not None:
-            gdspy.write_gds(name + '.gds', cells=None, name='library', unit=1e-06, precision=1e-09, timestamp=None,
+            self.lib.write_gds(name + '.gds', cells=None, timestamp=None,
                             binary_cells=None)
             self.path = os.getcwd() + '\\' + name + '.gds'
         else:
-            gdspy.write_gds(self.name + '.gds', cells=None, name='library', unit=1e-06, precision=1e-09,
+            self.lib.write_gds(self.name + '.gds', cells=None,
                             timestamp=None,
                             binary_cells=None)
             self.path = os.getcwd() + '\\' + self.name + '.gds'
         print("Gds file has been writen here: ", self.path)
 
-    def calculate_qubit_capacitance(self, cell, mesh_volume, name=None):
+    def calculate_qubit_capacitance(self, cell,qubit, mesh_volume, name=None):
         self.write_to_gds(name)
         mesh = meshing.Meshing(path=self.path,
                                cell_name=cell.name,
@@ -208,10 +232,18 @@ class Sample:
         mesh.write_into_file(os.getcwd() + '\\' + 'mesh_4k_data')
         mesh.run_fastcap(os.getcwd() + '\\' + 'mesh_4k_results')
         print("Capacitance results have been writen here: ", os.getcwd() + '\\' + 'mesh_4k_results')
-        caps = mesh.get_capacitances()
-        self.caps = caps
+        caps = np.round(mesh.get_capacitances(),1)
+        self.fill_cap_matrix(qubit,caps) # TODO: can we improve this way?
+        self.caps_list.append(caps)
         return caps
-
+    def fill_cap_matrix(self, qubit, caps):
+        qubit.C['qubit']=caps[1][1]
+        i=2
+        for id, coupler in enumerate(qubit.couplers):
+            if coupler.coupler_type == 'coupler':
+                qubit.C['coupler'+str(id)] = (caps[i][i], -caps[1][i])
+                i=i+1
+        return True
     # TODO: Nice function for bridges over cpw, need to update
     def connect_bridged_cpw(self, name, points, core, gap, ground, nodes=None, end=None, R=40, corner_type='round',
                             bridge_params=None):
@@ -273,10 +305,10 @@ class Sample:
         for object_ in self.objects:
             terminal_node_assignments = {}
             for terminal_name, terminal in object_.get_terminals().items():
-                if hasattr(terminal.w, '__iter__'):
-                    num_conductors = len(terminal.w)
-                else:
-                    num_conductors = 1
+                num_conductors = 1
+                if hasattr(terminal,'w'):
+                    if hasattr(terminal.w, '__iter__'):
+                        num_conductors = len(terminal.w)
 
                 for conductor_id in range(num_conductors):
                     if num_conductors == 1:
@@ -291,7 +323,6 @@ class Sample:
                         max_connection_id += 1
                         connections_flat[(object_, terminal_name, conductor_id)] = max_connection_id
                         terminal_node_assignments[terminal_identifier] = max_connection_id
-
             element_assignments[object_.name] = object_.add_to_tls(tls, terminal_node_assignments)
         return tls, connections_flat, element_assignments
 

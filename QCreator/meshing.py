@@ -126,13 +126,21 @@ class Meshing:
         print('Capacitance value in: ', value)
         table = []
 
-        def convert(value):
+        def convert_pico(value):
             epsilon = (11.45 + 1) / 2
             return round(epsilon * float(value), 2) / 1e3
+        def convert_nano(value):
+            epsilon = (11.45 + 1) / 2
+            return epsilon * float(value)
 
-        for i in range(-(number_of_conductors), 0):
-            table.append(map(convert, [word for word in text[i].split(' ') if word != ''][-number_of_conductors:]))
+        if value[:5] == 'femto':
+            for i in range(-(number_of_conductors), 0):
+                table.append(map(convert_pico, [word for word in text[i].split(' ') if word != ''][-number_of_conductors:]))
+        if value[:4] == 'nano':
+            for i in range(-(number_of_conductors), 0):
+                table.append(map(convert_nano, [word for word in text[i].split(' ') if word != ''][-number_of_conductors:]))
 
+        print(table)
         self.results= pd.DataFrame(table)
         return self.results
 
