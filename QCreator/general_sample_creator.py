@@ -5,7 +5,7 @@ from . import elements
 from . import transmission_line_simulator as tlsim
 from typing import NamedTuple, SupportsFloat, Any, Iterable, Tuple, List
 
-from . import  meshing
+from . import meshing
 from copy import deepcopy
 
 Bridges_over_line_param = NamedTuple('Bridge_params',
@@ -27,10 +27,11 @@ class Sample:
         self.lib = gdspy.GdsLibrary(unit=1e-06, precision=1e-09)
 
         self.total_cell = self.lib.new_cell(self.name, overwrite_duplicate=True, update_references=True)
-        self.restricted_cell = self.lib.new_cell(self.name + ' restricted', overwrite_duplicate=True, update_references=True)
+        self.restricted_cell = self.lib.new_cell(self.name + ' restricted', overwrite_duplicate=True,
+                                                 update_references=True)
         # Geometry must be placed in cells.
 
-        #for several additional features
+        # for several additional features
         self.qubits_cells = []
         self.qubit_cap_cells = []
         self.caps_list = []
@@ -72,7 +73,8 @@ class Sample:
                 self.restricted_cell.add(result['restrict'])
 
         self.fill_object_arrays()
-    def draw_cap(self): # TODO: maybe we need to come up with a better way, but for this moment it's fine
+
+    def draw_cap(self):  # TODO: maybe we need to come up with a better way, but for this moment it's fine
         """
         This function creates new cells with specified qubits
         1) cells for full qubits
@@ -84,7 +86,8 @@ class Sample:
             result = object_.get()
             if 'qubit_cap' in result:
                 if result['qubit_cap'] is not None:
-                    cap_cell = self.lib.new_cell('qubit capacitance cell ' + str(qubit_cap_cell_counter), overwrite_duplicate=True, update_references=True)
+                    cap_cell = self.lib.new_cell('qubit capacitance cell ' + str(qubit_cap_cell_counter),
+                                                 overwrite_duplicate=True, update_references=True)
                     cap_cell.add(result['qubit_cap'])
                     self.qubit_cap_cells.append(cap_cell)
                     qubit_cap_cell_counter = qubit_cap_cell_counter + 1
@@ -100,6 +103,7 @@ class Sample:
     def fill_object_arrays(self):
         self.qubits = [i for i in self.objects if i.type == 'qubit']
         self.couplers = [i for i in self.objects if i.type == 'qubit coupler']
+
     # def ground(self, element: elements.DesignElement, port: str):
     #     self.connections.append(((element, port), ('gnd', 'gnd')))
 
@@ -147,7 +151,6 @@ class Sample:
             self.connections.append(((o, port, conductor_id), (open_end, 'wide', conductor_id)))
 
         return open_end
-
 
     def connect_cpw(self, o1: elements.DesignElement, o2: elements.DesignElement, port1: str, port2: str, name: str,
                     points: list):
@@ -212,16 +215,16 @@ class Sample:
     def write_to_gds(self, name=None):
         if name is not None:
             self.lib.write_gds(name + '.gds', cells=None, timestamp=None,
-                            binary_cells=None)
+                               binary_cells=None)
             self.path = os.getcwd() + '\\' + name + '.gds'
         else:
             self.lib.write_gds(self.name + '.gds', cells=None,
-                            timestamp=None,
-                            binary_cells=None)
+                               timestamp=None,
+                               binary_cells=None)
             self.path = os.getcwd() + '\\' + self.name + '.gds'
         print("Gds file has been writen here: ", self.path)
 
-    def calculate_qubit_capacitance(self, cell,qubit, mesh_volume, name=None):
+    def calculate_qubit_capacitance(self, cell, qubit, mesh_volume, name=None):
         self.write_to_gds(name)
         mesh = meshing.Meshing(path=self.path,
                                cell_name=cell.name,
@@ -232,18 +235,20 @@ class Sample:
         mesh.write_into_file(os.getcwd() + '\\' + 'mesh_4k_data')
         mesh.run_fastcap(os.getcwd() + '\\' + 'mesh_4k_results')
         print("Capacitance results have been writen here: ", os.getcwd() + '\\' + 'mesh_4k_results')
-        caps = np.round(mesh.get_capacitances(),1)
-        self.fill_cap_matrix(qubit,caps) # TODO: can we improve this way?
+        caps = np.round(mesh.get_capacitances(), 1)
+        self.fill_cap_matrix(qubit, caps)  # TODO: can we improve this way?
         self.caps_list.append(caps)
         return caps
+
     def fill_cap_matrix(self, qubit, caps):
-        qubit.C['qubit']=caps[1][1]
-        i=2
+        qubit.C['qubit'] = caps[1][1]
+        i = 2
         for id, coupler in enumerate(qubit.couplers):
             if coupler.coupler_type == 'coupler':
-                qubit.C['coupler'+str(id)] = (caps[i][i], -caps[1][i])
-                i=i+1
+                qubit.C['coupler' + str(id)] = (caps[i][i], -caps[1][i])
+                i = i + 1
         return True
+
     # TODO: Nice function for bridges over cpw, need to update
     def connect_bridged_cpw(self, name, points, core, gap, ground, nodes=None, end=None, R=40, corner_type='round',
                             bridge_params=None):
@@ -306,7 +311,7 @@ class Sample:
             terminal_node_assignments = {}
             for terminal_name, terminal in object_.get_terminals().items():
                 num_conductors = 1
-                if hasattr(terminal,'w'):
+                if hasattr(terminal, 'w'):
                     if hasattr(terminal.w, '__iter__'):
                         num_conductors = len(terminal.w)
 

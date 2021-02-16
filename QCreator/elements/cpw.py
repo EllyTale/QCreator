@@ -261,7 +261,7 @@ class Narrowing(DesignElement):
         y_end = self.position[1] + self.length / 2 * np.sin(self.orientation)
 
         self.terminals = {'port1': DesignTerminal((x_begin, y_begin), self.orientation, w=w1, s=s1, g=g1, type='cpw'),
-                          'port2': DesignTerminal((x_end, y_end), self.orientation+np.pi, w=w2, s=s2, g=g2,
+                          'port2': DesignTerminal((x_end, y_end), self.orientation + np.pi, w=w2, s=s2, g=g2,
                                                   type='cpw')}
 
         self.tls_cache = []
@@ -916,18 +916,14 @@ class OpenEnd(DesignElement):
         self.gap = width_of_line - 2 * self.port.g
 
         self.initial_points = self.port.position
-        self.final_points = (self.port.position[0] - self.h1 * np.cos(angle), self.port.position[1] - self.h1 * np.sin(angle))
-        self.final_points_ = (self.final_points[0] - self.h2 * np.cos(angle), self.final_points[1] - self.h2 * np.sin(angle))
+        self.final_points = (
+            self.port.position[0] - self.h1 * np.cos(angle), self.port.position[1] - self.h1 * np.sin(angle))
+        self.final_points_ = (
+            self.final_points[0] - self.h2 * np.cos(angle), self.final_points[1] - self.h2 * np.sin(angle))
 
-        # points = [(self.port.position[0] - (width_of_line / 2) * np.sin(self.port.orientation),
-        #            self.port.position[1] + (width_of_line / 2) * np.cos(self.port.orientation)),
-        #           (self.port.position[0] + (self.h1 + self.h2), self.port.position[1] - width_of_line / 2),
-        #           (self.port.position[0] + (self.h1 + self.h2), self.port.position[1] + width_of_line / 2),
-        #           (self.port.position[0], self.port.position[1] + width_of_line / 2),
-        #           (self.port.position[0], self.port.position[1] + (width_of_line / 2 - self.port.g)),
-        #           (self.port.position[0] + self.h1, self.port.position[1] + (width_of_line / 2 - self.port.g)),
-        #           (self.port.position[0] + self.h1, self.port.position[1] - (width_of_line / 2 - self.port.g)),
-        #           (self.port.position[0], self.port.position[1] - (width_of_line / 2 - self.port.g))]
+        self.terminals = {'wide': DesignTerminal(position=self.port.position, orientation=self.port.orientation,
+                                                 g=self.port.g, s=self.port.s,
+                                                 w=self.port.w, type='mc-cpw')}
 
     def render(self):
         positive_total = None
@@ -942,16 +938,12 @@ class OpenEnd(DesignElement):
                                         width=self.gap + 2 * self.port.g,
                                         corners='natural', ends='flush', layer=self.layer_configuration.total_layer)
 
-        restrict_total = gdspy.FlexPath(points=[self.initial_points, self.final_points],
-                                        width=[self.port.g, self.port.g], offset=[self.gap / 2, self.gap / 2],
+        restrict_total = gdspy.FlexPath(points=[self.initial_points, self.final_points_],
+                                        width=self.gap + 2 * self.port.g,
                                         corners='natural', ends='flush',
                                         layer=self.layer_configuration.restricted_area_layer)
 
         positive_total = gdspy.boolean(operand1=continue_ground, operand2=add_connection, operation='or')
-
-        self.terminals = {'wide': DesignTerminal(position=self.port.position, orientation=self.port.orientation,
-                                   g=self.port.g, s=self.port.s,
-                                   w=self.port.w, type='mc-cpw')}
 
         return {'positive': positive_total, 'restrict': restrict_total}
 
@@ -979,8 +971,6 @@ class OpenEnd(DesignElement):
 
     def __repr__(self):
         return "OpenEnd {}".format(self.name)
-
-
 
 
 '''
