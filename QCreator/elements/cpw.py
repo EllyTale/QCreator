@@ -958,12 +958,12 @@ class OpenEnd(DesignElement):
                 # TODO: here you should use you capacitance
                 capacitor = tlsim.Capacitor(1e-15, 'open_end')
                 tls_instance.add_element(capacitor, [
-                    terminal_mapping[('wide', conductor_id)]])  # tlsim.TLSystem.add_element(name, nodes)
+                    terminal_mapping[('wide', conductor_id)], 0])  # tlsim.TLSystem.add_element(name, nodes)
                 cache.append(capacitor)
-        else:
+        elif self.number_of_conductors == 1:
             capacitor = tlsim.Capacitor(1e-15, 'open_end')
             cache.append(capacitor)
-            tls_instance.add_element(capacitor, [terminal_mapping['wide']])  # tlsim.TLSystem.add_element(name, nodes)
+            tls_instance.add_element(capacitor, [terminal_mapping['wide'], 0])  # tlsim.TLSystem.add_element(name, nodes)
 
         if track_changes:
             self.tls_cache.append(cache)
