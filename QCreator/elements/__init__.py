@@ -6,7 +6,7 @@ from .cpw import CPWCoupler, CPW, Narrowing, RectFanout, RectGrounding, OpenEnd
 from .grid_ground import GridGround
 from .coaxmon import Coaxmon
 from .resonators import RoundResonator
-from . meander import CPWMeander
+from . meander import create_meander_points , CPWMeander
 from .coaxmon import Coaxmon
 from .coaxmon import CoaxmonCoupler
 from .tqcoupler import MMCoupler

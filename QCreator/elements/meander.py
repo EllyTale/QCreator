@@ -2,6 +2,63 @@ import numpy as np
 from typing import List, Tuple, Mapping, Union, Iterable, Dict
 
 
+def create_meander_points(initial_position: Tuple[(float, float)],
+                          w: float, s: float, g: float,
+                          meander_length: float,
+                          restricted_scale: float, constant_scale: float, orientation: float, connector_length: float):
+    """
+    The function create and return a list of points for meander
+    """
+    delta = g + s + w / 2
+
+    meander_length_eff = meander_length - 2 * connector_length  # L
+    constant_scale_eff = constant_scale - 2 * connector_length  # a
+    restricted_scale_eff = restricted_scale - 2 * delta  # b
+
+    if meander_length_eff < 0 or constant_scale_eff < 0:
+        raise ValueError('Length of the meander is too short!')
+
+    number_of_curves = int((meander_length_eff - constant_scale_eff) // (restricted_scale_eff - 0 * delta) + 1.)
+
+    if number_of_curves < 1:
+        raise ValueError('Length of the meander is too short!')
+
+    scale_eff = (meander_length_eff - constant_scale_eff + delta * number_of_curves) / number_of_curves
+    x = constant_scale_eff / number_of_curves
+    if x <= 4 * delta:
+        raise ValueError('This restricted area is too small for this meander length!')
+
+    points_of_meander = [(initial_position[0][0], initial_position[0][1]),
+                         (initial_position[0][0] + connector_length * np.cos(orientation),
+                          initial_position[0][1] + connector_length * np.sin(orientation))]
+
+    for i in range(int(number_of_curves)):
+        if i % 2 == 0:
+            points_of_meander.append((points_of_meander[-1][0] - (scale_eff / 2) * np.sin(orientation),
+                                      points_of_meander[-1][1] + (scale_eff / 2) * np.cos(orientation)))
+
+            points_of_meander.append((points_of_meander[-1][0] + x * np.cos(orientation),
+                                      points_of_meander[-1][1] + x * np.sin(orientation)))
+
+            points_of_meander.append((points_of_meander[-1][0] + (scale_eff / 2) * np.sin(orientation),
+                                      points_of_meander[-1][1] - (scale_eff / 2) * np.cos(orientation)))
+
+        else:
+            points_of_meander.append((points_of_meander[-1][0] + (scale_eff / 2) * np.sin(orientation),
+                                      points_of_meander[-1][1] - (scale_eff / 2) * np.cos(orientation)))
+
+            points_of_meander.append((points_of_meander[-1][0] + x * np.cos(orientation),
+                                      points_of_meander[-1][1] + x * np.sin(orientation)))
+
+            points_of_meander.append((points_of_meander[-1][0] - (scale_eff / 2) * np.sin(orientation),
+                                      points_of_meander[-1][1] + (scale_eff / 2) * np.cos(orientation)))
+
+    points_of_meander.append((points_of_meander[-1][0] + connector_length * np.cos(orientation),
+                              points_of_meander[-1][1] + connector_length * np.sin(orientation)))
+
+    return points_of_meander
+
+
 class CPWMeander:
     def __init__(self, initial_point: Tuple[(float, float)], w: float, s: float, g: float,
                  meander_length: float, restricted_scale: float, constant_scale: float,
@@ -37,13 +94,13 @@ class CPWMeander:
         if meander_length_eff < 0 or constant_scale_eff < 0:
             raise ValueError('Length of the meander is too short!')
 
-        number_of_curves = (meander_length_eff - constant_scale_eff) // (restricted_scale_eff - 0 * delta) + 1
+        number_of_curves = (meander_length_eff - constant_scale_eff) // (restricted_scale_eff - 0 * delta) + 1.
         if number_of_curves < 1.:
             raise ValueError('Length of the meander is too short!')
 
         scale_eff = (meander_length_eff - constant_scale_eff + 0 * delta * number_of_curves) / number_of_curves
         x = constant_scale_eff / number_of_curves - 0 * delta
-        #if x <= 4 * delta:
+        # if x <= 4 * delta:
         #    raise ValueError('Length of the meander is too long or restricted parameters are to small!')
 
         points_of_meander = [(self.initial_point[0][0], self.initial_point[0][1]),
@@ -88,15 +145,8 @@ class CPWMeander:
         points_of_meander.append((points_of_meander[-1][0] + self.connector_length * np.cos(self.orientation),
                                   points_of_meander[-1][1] + self.connector_length * np.sin(self.orientation)))
 
-
         check_length += self.connector_length
 
-        #self.points = points_of_meander[1: len(points_of_meander)-1]
+        # self.points = points_of_meander[1: len(points_of_meander)-1]
         self.points = points_of_meander
         pass
-        # print(f"""Number of curves {number_of_curves}
-        # Scale eff {scale_eff}
-        # x {x}
-        # delta {delta}
-        # check length {check_length}
-        # """)

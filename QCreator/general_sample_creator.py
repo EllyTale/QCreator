@@ -122,13 +122,30 @@ class Sample:
 
     def ground(self, o: elements.DesignElement, port: str, name: str, grounding_width: float,
                grounding_between: List[Tuple[int, int]]):
-        if port == 'port1':
-            reverse_type = 'Negative'
-        else:
-            reverse_type = 'Positive'
+        t = o.get_terminals()[port]
 
-        closed_end = elements.RectGrounding(name, o.get_terminals()[port], grounding_width, grounding_between,
-                                            self.layer_configuration, reverse_type)
+        if type(t.w) and type(t.s) == list:
+            w_ = t.w
+            s_ = t.s
+
+        elif type(t.w) == float or type(t.w) == int:
+            w_ = [t.w]
+            s_ = [t.s, t.s]
+        else:
+            raise ValueError('Unexpected types of CPW parameters')
+        g_ = t.g
+
+        # if port == 'port1':
+        #     reverse_type = 'Negative'
+        # else:
+        #     reverse_type = 'Positive'
+
+        position_ = t.position
+        orientation_ = t.orientation
+
+        closed_end = elements.RectGrounding(name, position_, orientation_, w_, s_, g_, grounding_width,
+                                            grounding_between,
+                                            self.layer_configuration)
         self.add(closed_end)
 
         conductor_in_narrow = 0
@@ -136,15 +153,27 @@ class Sample:
         for conductor_id in range(closed_end.initial_number_of_conductors):
             self.connections.append(((o, port, conductor_id), (closed_end, 'wide', conductor_id)))
 
-        # if closed_end.final_number_of_conductors:
-        #     for conductor_id in closed_end.free_core_conductors:
-        #         self.connections.append(((closed_end, 'wide', conductor_id), (closed_end, 'narrow', conductor_in_narrow)))
-        #         conductor_in_narrow += 1
-
         return closed_end
 
     def open_end(self, o: elements.DesignElement, port: str, name: str):
-        open_end = elements.OpenEnd(name, o.get_terminals()[port], self.layer_configuration)
+        position_ = o.get_terminals()[port].position
+        orientation_ = o.get_terminals()[port].orientation
+
+        if type(o.get_terminals()[port].w) and type(o.get_terminals()[port].s) == list:
+            w_ = o.get_terminals()[port].w
+            s_ = o.get_terminals()[port].s
+            g_ = o.get_terminals()[port].g
+
+        elif type(o.get_terminals()[port].w) == float or type(o.get_terminals()[port].w) == int:
+            w_ = [o.get_terminals()[port].w]
+            s_ = [o.get_terminals()[port].s, o.get_terminals()[port].s]
+            g_ = o.get_terminals()[port].g
+
+        else:
+            raise ValueError('Unexpected data types of CPW parameters')
+
+        open_end = elements.OpenEnd(name, position_, w_, s_, g_, orientation_, self.layer_configuration)
+        # open_end = elements.OpenEnd(name, o.get_terminals()[port], self.layer_configuration)
         self.add(open_end)
 
         for conductor_id in range(open_end.number_of_conductors):
@@ -420,6 +449,68 @@ class Sample:
         self.cell_to_remove.add(line2[2])
         return (firstline.end[0] + 2 * narrowing_length + airbridge[0] * 2 + airbridge[1], firstline.end[1]), None
 
+    def meander_connection(self, name: str, o1: elements.DesignElement, port1: str, meander_length: float,
+                           restricted_scale: float, o2: elements.DesignElement,
+                           port2: str, radius: float = 0.):
+
+        if o1 not in self.objects:
+            raise ValueError('Object o1 not in sample')
+        if o2 not in self.objects:
+            raise ValueError('Object o2 not in sample')
+
+        t1 = o1.get_terminals()[port1]
+        t2 = o2.get_terminals()[port2]
+
+        w1, s1, g1 = t1.w, t1.s, t1.g
+        w2, s2, g2 = t2.w, t2.s, t2.g
+
+        assert (w1 == w2) and (s1 == s2) and (g1 == g2)
+        assert t1.orientation - t2.orientation == - np.pi or t1.orientation - t2.orientation == np.pi
+
+        delta = g1 + s1 + w1 / 2
+
+        connector_length = 4 * delta
+
+        distance = np.sqrt((t1.position[0] - t2.position[0]) ** 2 + (t1.position[1] - t2.position[1]) ** 2)
+
+        if t1.position[0] - t2.position[0] == 0:
+            angle = np.pi / 2
+        else:
+            angle = np.arctan((t1.position[1] - t2.position[1]) / (t1.position[0] - t2.position[0]))
+
+        if t1.orientation - t2.orientation == - np.pi:
+            angle += 0
+        elif t1.orientation - t2.orientation == np.pi:
+            angle += np.pi
+
+        initial_point = [(t1.position[0], t1.position[1])]
+
+        orientation1 = t1.orientation + np.pi
+        if orientation1 > np.pi:
+            orientation1 -= 2 * np.pi
+        orientation2 = t2.orientation + np.pi
+        if orientation2 > np.pi:
+            orientation2 -= 2 * np.pi
+
+        meander_points = elements.create_meander_points(initial_position=initial_point, w=w1, s=s1, g=g1,
+                                                        meander_length=meander_length,
+                                                        restricted_scale=restricted_scale, constant_scale=distance,
+                                                        orientation=angle, connector_length=connector_length)
+        meander_points_ = meander_points[1: len(meander_points) - 1]
+
+        points_for_creation = []
+        for elem in range(len(meander_points_) - 1, -1, -1):
+            points_for_creation.append(meander_points_[elem])
+
+        points = [tuple(t1.position)] + meander_points_ + [tuple(t2.position)]
+        cpw = elements.CPW(name, points, w1, s1, g1, self.layer_configuration, r=radius,
+                           corner_type='round', orientation1=orientation1, orientation2=orientation2)
+        self.add(cpw)
+
+        self.connections.extend([((cpw, 'port1', 0), (o1, port1, 0)), ((cpw, 'port2', 0), (o2, port2, 0))])
+
+        return cpw
+
     def connect_meander(self, name: str, o1: elements.DesignElement, port1: str, meander_length: float,
                         restricted_scale: float, constant_scale: float = 0., o2: elements.DesignElement = None,
                         port2: str = None, radius: float = 0., connector: float = 10.):
@@ -505,7 +596,7 @@ class Sample:
         return rendering_meander
 
 
-# TODO: might be useflu for elements/cpw.py to caluclate the line of the cpw line
+# TODO: might be useflul for elements/cpw.py to caluclate the line of the cpw line
 def calculate_total_length(points):
     i0, j0 = points[0]
     length = 0
