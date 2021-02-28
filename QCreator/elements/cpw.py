@@ -648,6 +648,7 @@ class RectFanout(DesignElement):
         self.tls_cache = []
 
         e = np.asarray([np.cos(port.orientation + np.pi), np.sin(port.orientation + np.pi)])
+        e_ = np.asarray([np.cos(port.orientation + np.pi), np.sin(port.orientation + np.pi)])
         e_down = np.asarray([np.cos(port.orientation + np.pi / 2), np.sin(port.orientation + np.pi / 2)])
         e_up = np.asarray([np.cos(port.orientation - np.pi / 2), np.sin(port.orientation - np.pi / 2)])
 
@@ -722,6 +723,9 @@ class RectFanout(DesignElement):
                      port.position + e * (self.length - self.groups_widths_total[2] / 2 + np.abs(
                          self.groups_global_offsets[2])) + e_up * self.width_total / 2]
 
+        # self.dict_of_lengths = {'down': total_length_of_line(points_down),
+        #                         'center': total_length_of_line(points_center), 'up': total_length_of_line(points_up)}
+
         self.groups_points = [points_down, points_center, points_up]
 
         for name, exists, points, orientation, w, s, global_offset in zip(
@@ -744,6 +748,131 @@ class RectFanout(DesignElement):
                 self.terminals[name] = DesignTerminal(position=points[-1] + position_correction,
                                                       orientation=group_orientation, type=type_,
                                                       w=w, s=s, g=self.g, disconnected='short')
+        # correction of points
+        # it is a dictionary with creation points for every type of points
+        self.dict_of_points = {'down': points_down, 'center': points_center, 'up': points_up}
+        print(self.dict_of_points)
+
+        delta_correction = {'down': self.groups_global_offsets[0], 'center': self.groups_global_offsets[1],
+                            'up': self.groups_global_offsets[2]}
+        print('delta_correction', delta_correction)
+        for group in self.dict_of_points.keys():
+            if group in ['down', 'up']:
+                corrected_points = [(0, 0), (0, 0), (0, 0)]
+                global_offset = delta_correction[group]
+
+                if group == 'down':
+                    corrected_points[0] = self.dict_of_points[group][0] + e_down * np.abs(global_offset)
+                elif group == 'up':
+                    corrected_points[0] = self.dict_of_points[group][0] + e_up * np.abs(global_offset)
+
+                corrected_points[2] = self.dict_of_points[group][2] - e * np.abs(global_offset)
+
+                corrected_points[1] = (corrected_points[2][0], corrected_points[0][1])
+
+                self.dict_of_points[group] = corrected_points
+
+    def finilize_points_for_tls(self):
+        dict_of_parts = {'down': {'first': 0, 'second': 0}, 'center': {'first': 0, 'second': 0},
+                         'up': {'first': 0, 'second': 0}}
+
+        for group in self.terminals.keys():
+            if group == 'up' or group == 'down':
+                first_part_length = total_length_of_line(self.dict_of_points[group][:2])
+                second_part_length = total_length_of_line(self.dict_of_points[group][1:])
+                dict_of_parts[group] = {'first': first_part_length, 'second': second_part_length}
+
+            elif group == 'center':
+                part_length = total_length_of_line(self.dict_of_points[group])
+                dict_of_parts[group] = {'first': part_length, 'second': 0}
+            else:
+                continue
+
+        terminals_keys = list(self.get_terminals().keys())
+        terminals_keys.sort()
+
+        # case 1: one coupler and two resonators and a line
+        if terminals_keys == ['center', 'down', 'up', 'wide']:
+            type_of_fanout_configuration = '1'
+            dict_of_lengths = {'down': {'coupling': 0, 'independent': 0},
+                               'center': {'coupling': 0, 'independent': 0}, 'up': {'coupling': 0, 'independent': 0}}
+
+            coupling_length = min(dict_of_parts['down']['first'], dict_of_parts['up']['first'])
+
+            for group in ['center', 'down', 'up']:
+                independent_length = dict_of_parts[group]['first'] - coupling_length + dict_of_parts[group]['second']
+
+                dict_of_lengths[group] = {'coupling': coupling_length, 'independent': independent_length}
+
+            structure = dict.fromkeys(['coupler'] + ['center', 'down', 'up'])
+
+            for group in structure.keys():
+                if group == 'coupler':
+                    structure[group] = {'l': dict_of_lengths['center']['coupling'],
+                                        'w': self.get_terminals()['wide'].w,
+                                        's': self.get_terminals()['wide'].s,
+                                        'g': self.get_terminals()['wide'].g,
+                                        'noc': len(self.get_terminals()['wide'].w)}
+
+                else:
+                    structure[group] = {'l': dict_of_lengths[group]['independent'],
+                                        'w': self.get_terminals()[group].w,
+                                        's': self.get_terminals()[group].s,
+                                        'g': self.get_terminals()[group].g,
+                                        'noc': len(self.get_terminals()[group].w)}
+
+        # case 2: continue a coupler
+        elif terminals_keys == ['center', 'wide'] or terminals_keys == ['down', 'wide'] or terminals_keys == ['up',
+                                                                                                              'wide']:
+            type_of_fanout_configuration = '2'
+            terminals_keys.remove('wide')
+            dict_of_lengths = dict.fromkeys(terminals_keys)
+
+            group = terminals_keys[0]
+            independent_length = dict_of_parts[group]['first'] + dict_of_parts[group]['second']
+
+            dict_of_lengths[group] = {'coupling': 0, 'independent': independent_length}
+
+            structure = dict.fromkeys(group)
+            structure[group] = {'l': dict_of_lengths[group]['independent'],
+                                'w': self.get_terminals()[group].w,
+                                's': self.get_terminals()[group].s,
+                                'g': self.get_terminals()[group].g,
+                                'noc': len(self.get_terminals()[group].w)}
+
+        # case 3: one coupler and  a resonator and a line
+        elif terminals_keys == ['center', 'up', 'wide'] or terminals_keys == ['center', 'down', 'wide']:
+            type_of_fanout_configuration = '3'
+            terminals_keys.remove('wide')
+            dict_of_lengths = dict.fromkeys(terminals_keys)
+
+            groups = terminals_keys
+            up_or_down = terminals_keys[1]
+            coupling_length = dict_of_parts[up_or_down]['first']
+
+            for group in groups:
+                independent_length = dict_of_parts[group]['first'] - coupling_length + dict_of_parts[group]['second']
+                dict_of_lengths[group] = {'coupling': coupling_length, 'independent': independent_length}
+
+            structure = dict.fromkeys(['coupler'] + groups)
+
+
+        # case 4: one coupler and two lines
+        elif terminals_keys == ['down', 'up', 'wide']:
+            type_of_fanout_configuration = '4'
+            terminals_keys.remove('wide')
+            dict_of_lengths = dict.fromkeys(terminals_keys)
+
+            groups = terminals_keys
+            coupling_length = 0
+            for group in groups:
+                independent_length = dict_of_parts[group]['first'] - coupling_length + dict_of_parts[group]['second']
+                dict_of_lengths[group] = {'coupling': coupling_length, 'independent': independent_length}
+
+        else:
+            raise ValueError('Topology of fanout is not correct!')
+
+        return dict_of_parts, dict_of_lengths, type_of_fanout_configuration
 
     def render(self):
         precision = 0.001
@@ -787,30 +916,39 @@ class RectFanout(DesignElement):
         return {'positive': positive_total, 'restrict': restrict_total}
 
     def cm(self):
-        cross_section = [self.s[0]]
-        for c in range(len(self.w)):
-            cross_section.append(self.w[c])
-            cross_section.append(self.s[c + 1])
+        dict_of_parts, dict_of_lengths, type_of_fanout_configuration = self.finilize_points_for_tls()
+        # if type_of_fanout_configuration == '1':
+        #
+        # if type_of_fanout_configuration == '2':
+        #
+        #
+        #     cm.ConformalMapping(cross_section(self.get)).cl_and_Ll()
 
-        wide_cl, wide_ll = cm.ConformalMapping(cross_section).cl_and_Ll()
-
-        groups_cl = []
-        groups_ll = []
-        for group_id in range(3):
-            if not self.groups_exist[group_id]:
-                cl = [[]]
-                ll = [[]]
-            else:
-                cross_section = [self.groups_s[group_id][0]]
-                for c in range(len(self.groups_w[group_id])):
-                    cross_section.append(self.groups_w[group_id][c])
-                    cross_section.append(self.groups_s[group_id][c + 1])
-
-                cl, ll = cm.ConformalMapping(cross_section).cl_and_Ll()
-            groups_cl.append(cl)
-            groups_ll.append(ll)
-
-        return wide_cl, wide_ll, groups_cl, groups_ll
+    # def cm(self):
+    #     cross_section = [self.s[0]]
+    #     for c in range(len(self.w)):
+    #         cross_section.append(self.w[c])
+    #         cross_section.append(self.s[c + 1])
+    #
+    #     wide_cl, wide_ll = cm.ConformalMapping(cross_section).cl_and_Ll()
+    #
+    #     groups_cl = []
+    #     groups_ll = []
+    #     for group_id in range(3):
+    #         if not self.groups_exist[group_id]:
+    #             cl = [[]]
+    #             ll = [[]]
+    #         else:
+    #             cross_section = [self.groups_s[group_id][0]]
+    #             for c in range(len(self.groups_w[group_id])):
+    #                 cross_section.append(self.groups_w[group_id][c])
+    #                 cross_section.append(self.groups_s[group_id][c + 1])
+    #
+    #             cl, ll = cm.ConformalMapping(cross_section).cl_and_Ll()
+    #         groups_cl.append(cl)
+    #         groups_ll.append(ll)
+    #
+    #     return wide_cl, wide_ll, groups_cl, groups_ll
 
     def add_to_tls(self, tls_instance: tlsim.TLSystem,
                    terminal_mapping: Mapping[str, int], track_changes: bool = True) -> list:
@@ -874,6 +1012,23 @@ class RectFanout(DesignElement):
 
     def __repr__(self):
         return "RectFanout {}, n={}, grouping=({}, {})".format(self.name, len(self.w), *self.grouping)
+
+
+def total_length_of_line(points):
+    length = 0
+    i0, j0 = points[0]
+    for i, j in points[1:]:
+        length += np.sqrt((i - i0) ** 2 + (j - j0) ** 2)
+        i0, j0 = i, j
+    return length
+
+
+def cross_section(w, s):
+    section = [s[0]]
+    for c in range(len(w)):
+        section.append(w[c])
+        section.append(s[c + 1])
+    return section
 
 
 # TODO: modify two classes with position and orientation and port parameters use  in general_sample_creator
