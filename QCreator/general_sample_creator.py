@@ -115,8 +115,16 @@ class Sample:
                                      down_s_right=down_s_right, center_s_left=center_s_left,
                                      center_s_right=center_s_right, up_s_left=up_s_left)
         self.add(fanout)
+        # for conductor_id in range(len(fanout.w)):
+        #     self.connections.append(((o, port, conductor_id), (fanout, 'wide', conductor_id)))
+
+        # here we want to add extra internal connection in fanout
+
         for conductor_id in range(len(fanout.w)):
             self.connections.append(((o, port, conductor_id), (fanout, 'wide', conductor_id)))
+
+        # for conductor_id in range(len(fanout.w)):
+        #     self.connections.append(((fanout, 'wide', conductor_id), (fanout, 'middle', conductor_id)))
 
         return fanout
 

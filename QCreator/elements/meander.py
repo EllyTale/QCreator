@@ -18,10 +18,12 @@ def create_meander_points(initial_position: Tuple[(float, float)],
     if meander_length_eff < 0 or constant_scale_eff < 0:
         raise ValueError('Length of the meander is too short!')
 
-    number_of_curves = int((meander_length_eff - constant_scale_eff) // (restricted_scale_eff - 0 * delta) + 1.)
+    number_of_curves = int((meander_length_eff - constant_scale_eff) // (restricted_scale_eff))  # + 1.)
 
     if number_of_curves < 1:
         raise ValueError('Length of the meander is too short!')
+
+    # scale_eff is b effect
 
     scale_eff = (meander_length_eff - constant_scale_eff + delta * number_of_curves) / number_of_curves
     x = constant_scale_eff / number_of_curves
@@ -31,30 +33,41 @@ def create_meander_points(initial_position: Tuple[(float, float)],
     points_of_meander = [(initial_position[0][0], initial_position[0][1]),
                          (initial_position[0][0] + connector_length * np.cos(orientation),
                           initial_position[0][1] + connector_length * np.sin(orientation))]
+    check_length = 0
 
     for i in range(int(number_of_curves)):
         if i % 2 == 0:
             points_of_meander.append((points_of_meander[-1][0] - (scale_eff / 2) * np.sin(orientation),
                                       points_of_meander[-1][1] + (scale_eff / 2) * np.cos(orientation)))
+            check_length += scale_eff / 2
 
             points_of_meander.append((points_of_meander[-1][0] + x * np.cos(orientation),
                                       points_of_meander[-1][1] + x * np.sin(orientation)))
+            check_length += x
 
             points_of_meander.append((points_of_meander[-1][0] + (scale_eff / 2) * np.sin(orientation),
                                       points_of_meander[-1][1] - (scale_eff / 2) * np.cos(orientation)))
+
+            check_length += scale_eff / 2
 
         else:
             points_of_meander.append((points_of_meander[-1][0] + (scale_eff / 2) * np.sin(orientation),
                                       points_of_meander[-1][1] - (scale_eff / 2) * np.cos(orientation)))
+            check_length += scale_eff / 2
 
             points_of_meander.append((points_of_meander[-1][0] + x * np.cos(orientation),
                                       points_of_meander[-1][1] + x * np.sin(orientation)))
+            check_length += x
 
             points_of_meander.append((points_of_meander[-1][0] - (scale_eff / 2) * np.sin(orientation),
                                       points_of_meander[-1][1] + (scale_eff / 2) * np.cos(orientation)))
 
+            check_length += scale_eff / 2
+
     points_of_meander.append((points_of_meander[-1][0] + connector_length * np.cos(orientation),
                               points_of_meander[-1][1] + connector_length * np.sin(orientation)))
+    check_length += 2 * connector_length
+    print(check_length)
 
     return points_of_meander
 
