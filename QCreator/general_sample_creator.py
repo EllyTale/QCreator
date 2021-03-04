@@ -115,16 +115,8 @@ class Sample:
                                      down_s_right=down_s_right, center_s_left=center_s_left,
                                      center_s_right=center_s_right, up_s_left=up_s_left)
         self.add(fanout)
-        # for conductor_id in range(len(fanout.w)):
-        #     self.connections.append(((o, port, conductor_id), (fanout, 'wide', conductor_id)))
-
-        # here we want to add extra internal connection in fanout
-
         for conductor_id in range(len(fanout.w)):
             self.connections.append(((o, port, conductor_id), (fanout, 'wide', conductor_id)))
-
-        # for conductor_id in range(len(fanout.w)):
-        #     self.connections.append(((fanout, 'wide', conductor_id), (fanout, 'middle', conductor_id)))
 
         return fanout
 
@@ -473,7 +465,7 @@ class Sample:
         w2, s2, g2 = t2.w, t2.s, t2.g
 
         assert (w1 == w2) and (s1 == s2) and (g1 == g2)
-        assert t1.orientation - t2.orientation == - np.pi or t1.orientation - t2.orientation == np.pi
+        #assert (t1.orientation - t2.orientation == - np.pi) or (t1.orientation - t2.orientation == np.pi)
 
         delta = g1 + s1 + w1 / 2
 

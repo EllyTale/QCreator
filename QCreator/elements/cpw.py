@@ -446,27 +446,27 @@ class RectGrounding(DesignElement):
                     self.narrow_port_s[1]:
 
                 self.terminals = {
-                    'wide': DesignTerminal(position=self.position, orientation=self.orientation - np.pi,
+                    'wide': DesignTerminal(position=self.position, orientation=self.orientation,
                                            g=self.g, s=self.s,
-                                           w=self.w, type='mc-cpw'),
+                                           w=self.w, type='cpw'),
                     'narrow': DesignTerminal(position=new_end_points, orientation=self.orientation, g=self.g,
                                              s=self.narrow_port_s[0],
                                              w=self.narrow_port_w[0], type='cpw')}
 
             else:
                 self.terminals = {
-                    'wide': DesignTerminal(position=self.position, orientation=self.orientation - np.pi,
+                    'wide': DesignTerminal(position=self.position, orientation=self.orientation,
                                            g=self.g, s=self.s,
-                                           w=self.w, type='mc-cpw'),
+                                           w=self.w, type='cpw'),
                     'narrow': DesignTerminal(position=new_end_points, orientation=self.orientation, g=self.g,
                                              s=self.narrow_port_s,
-                                             w=self.narrow_port_w, type='mc-cpw')}
+                                             w=self.narrow_port_w, type='cpw')}
 
         else:
             self.terminals = {
-                'wide': DesignTerminal(position=self.position, orientation=self.orientation - np.pi,
+                'wide': DesignTerminal(position=self.position, orientation=self.orientation,
                                        g=self.g, s=self.s[0],
-                                       w=self.w[0], type='mc-cpw')}
+                                       w=self.w[0], type='cpw')}
 
         self.widths_ground, self.offsets_ground = widths_offsets_for_ground(list_of_conductors, list_of_gaps)
         self.widths_of_cpw_new = widths_of_cpw_new
@@ -955,45 +955,31 @@ class RectFanout(DesignElement):
                                        name=self.name + '_line_' + str(len(cache)))
 
                 for conductor_id in range(begin_conductor, begin_conductor + number_of_conductors):
+
                     mapping_ += [terminal_mapping[('middle', conductor_id)]]
 
                 begin_conductor += number_of_conductors
 
-                if elem in terminal_mapping:
-                    mapping_ += [terminal_mapping[elem]]
+                if self.port.order:
+                    if elem in terminal_mapping:
+                        mapping_ += [terminal_mapping[elem]]
 
-                elif (elem, 0) in terminal_mapping:
+                    elif (elem, 0) in terminal_mapping:
 
-                    for conductor_id in range(number_of_conductors):
-                        mapping_ += [terminal_mapping[(elem, conductor_id)]]
+                        for conductor_id in range(number_of_conductors-1, -1, -1):
+                            mapping_ += [terminal_mapping[(elem, conductor_id)]]
 
+                else:
+                    if elem in terminal_mapping:
+                        mapping_ += [terminal_mapping[elem]]
 
+                    elif (elem, 0) in terminal_mapping:
 
-                # if elem in terminal_mapping:
-                #     for conductor_id in range(begin_conductor, begin_conductor + number_of_conductors):
-                #         mapping_ += [terminal_mapping[('middle', conductor_id)]]
-                #     mapping_ += [terminal_mapping[elem]]
-                #
-                # elif (elem, 0) in terminal_mapping:
-                #     for conductor_id in range(begin_conductor, begin_conductor + number_of_conductors):
-                #         mapping_ += [terminal_mapping[('middle', conductor_id)]]
-                #
-                #     begin_conductor += number_of_conductors
-                #
-                #     for conductor_id in range(number_of_conductors):
-                #         mapping_ += [terminal_mapping[(elem, conductor_id)]]
-                # else:
-                #
-                #     raise ValueError('Neither ({}, 0) or {} found in terminal_mapping'.format(elem, elem))
+                        for conductor_id in range(number_of_conductors):
+                            mapping_ += [terminal_mapping[(elem, conductor_id)]]
 
-
-                # for conductor_id in range(begin_conductor, begin_conductor + number_of_conductors):
-                #     mapping_ += [terminal_mapping[('middle', conductor_id)]]
-                #
-                # begin_conductor += number_of_conductors
-                #
-                # for conductor_id in range(number_of_conductors):
-                #     mapping_ += [terminal_mapping[(elem, conductor_id)]]
+                    else:
+                        raise ValueError('Neither ({}, 0) or port2 found in terminal_mapping'.format(elem))
 
                 tls_instance.add_element(line, mapping_)
                 cache.append(line)
@@ -1218,103 +1204,6 @@ class OpenEnd(DesignElement):
 
     def __repr__(self):
         return "OpenEnd {}".format(self.name)
-
-    # class OpenEnd(DesignElement):
-    #     terminals: Dict[str, DesignTerminal]
-    #
-    #     def __init__(self, name: str, port: DesignTerminal,
-    #                  layer_configuration: LayerConfiguration, h1: float = 20., h2: float = 20.):
-    #
-    #
-    #         """
-    #         Create open end (or connect two grounds of CPW).
-    #         :param name: element identifier
-    #         :param port: port of CPWCoupler to attach to
-    #         :param layer_configuration
-    #         :param h1: height of open end
-    #         :param h2: width of open end
-    #         """
-    #         super().__init__('open_end', name)
-    #
-    #         self.port = port
-    #         self.h1 = h1
-    #         self.h2 = h2
-    #         self.layer_configuration = layer_configuration
-    #
-    #         self.tls_cache = []
-    #
-    #         if type(port.w) and type(port.s) != list:  # create lists of w and s
-    #             self.port.w = [port.w]
-    #             self.port.s = [port.s, port.s]
-    #         else:
-    #             self.port.w = port.w
-    #             self.port.s = port.s
-    #
-    #         self.number_of_conductors = len(self.port.w)
-    #
-    #         width_of_line = sum(self.port.s) + sum(self.port.w) + 2 * self.port.g
-    #         angle = self.port.orientation
-    #
-    #         self.gap = width_of_line - 2 * self.port.g
-    #
-    #         self.initial_points = self.port.position
-    #         self.final_points = (
-    #             self.port.position[0] - self.h1 * np.cos(angle), self.port.position[1] - self.h1 * np.sin(angle))
-    #         self.final_points_ = (
-    #             self.final_points[0] - self.h2 * np.cos(angle), self.final_points[1] - self.h2 * np.sin(angle))
-    #
-    #         self.terminals = {'wide': DesignTerminal(position=self.port.position, orientation=self.port.orientation,
-    #                                                  g=self.port.g, s=self.port.s,
-    #                                                  w=self.port.w, type='mc-cpw')}
-    #
-    #     def render(self):
-    #         positive_total = None
-    #         restrict_total = None
-    #
-    #         continue_ground = gdspy.FlexPath(points=[self.initial_points, self.final_points],
-    #                                          width=[self.port.g, self.port.g],
-    #                                          offset=[-self.gap / 2 - self.port.g / 2, self.gap / 2 + self.port.g / 2],
-    #                                          corners='natural', ends='flush', layer=self.layer_configuration.total_layer)
-    #
-    #         add_connection = gdspy.FlexPath(points=[self.final_points, self.final_points_],
-    #                                         width=self.gap + 2 * self.port.g,
-    #                                         corners='natural', ends='flush', layer=self.layer_configuration.total_layer)
-    #
-    #         restrict_total = gdspy.FlexPath(points=[self.initial_points, self.final_points_],
-    #                                         width=self.gap + 2 * self.port.g,
-    #                                         corners='natural', ends='flush',
-    #                                         layer=self.layer_configuration.restricted_area_layer)
-    #
-    #         positive_total = gdspy.boolean(operand1=continue_ground, operand2=add_connection, operation='or')
-    #
-    #         return {'positive': positive_total, 'restrict': restrict_total}
-    #
-    #     def get_terminals(self) -> Mapping[str, DesignTerminal]:
-    #         return self.terminals
-    #
-    #     def add_to_tls(self, tls_instance: tlsim.TLSystem,
-    #                    terminal_mapping: Mapping[str, int], track_changes: bool = True) -> list:
-    #         cache = []
-    #         if self.number_of_conductors > 1:
-    #             for conductor_id in range(self.number_of_conductors):  # loop over all conductors
-    #                 # TODO: here you should use you capacitance
-    #                 capacitor = tlsim.Capacitor(1e-15, 'open_end')
-    #                 tls_instance.add_element(capacitor, [
-    #                     terminal_mapping[('wide', conductor_id)], 0])  # tlsim.TLSystem.add_element(name, nodes)
-    #                 cache.append(capacitor)
-    #         elif self.number_of_conductors == 1:
-    #             capacitor = tlsim.Capacitor(1e-15, 'open_end')
-    #             cache.append(capacitor)
-    #             tls_instance.add_element(capacitor,
-    #                                      [terminal_mapping['wide'], 0])  # tlsim.TLSystem.add_element(name, nodes)
-    #
-    #         if track_changes:
-    #             self.tls_cache.append(cache)
-    #         return cache
-    #
-    #     def __repr__(self):
-    #         return "OpenEnd {}".format(self.name)
-
 
 '''
 class RectFanout(DesignElement):
